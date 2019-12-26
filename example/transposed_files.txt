@@ -1,0 +1,2 @@
+/Users/matthewmosior/Software/Haskell/humocreatevariantfile/example/transposed_chrX:49341578:49341578:C:T.tsv
+/Users/matthewmosior/Software/Haskell/humocreatevariantfile/example/transposed_chrY:13359198:13359198:T:C.tsv
