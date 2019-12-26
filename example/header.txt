@@ -1,0 +1,10 @@
+1073_HuMoA_DNA-normal
+1073_HuMoA_DNA-tumor
+1073_HuMoB_DNA-normal
+1073_HuMoB_DNA-tumor
+1073_Tumor_DNA-normal
+1073_Tumor_DNA-tumor
+1073_XenoA_DNA-normal
+1073_XenoA_DNA-tumor
+1073_XenoB_DNA-normal
+1073_XenoB_DNA-tumor
