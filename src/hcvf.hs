@@ -13,6 +13,8 @@
 
 {-Imports-}
 
+import Data.ByteString as DB
+import Data.ByteString.Char8 as DBC
 import Data.Functor as DF
 import Data.List as DL
 import Data.List.Split as DLS
@@ -82,17 +84,17 @@ compilerOpts argv =
     case getOpt Permute options argv of
         (args,files,[]) ->
             if DL.elem Help args
-                then do hPutStrLn stderr (greeting ++ SCG.usageInfo header options)
+                then do SIO.hPutStrLn stderr (greeting ++ SCG.usageInfo header options)
                         SX.exitWith SX.ExitSuccess
                 else if DL.elem Version args
-                    then do hPutStrLn stderr (greeting ++ version ++ SCG.usageInfo header options)
+                    then do SIO.hPutStrLn stderr (greeting ++ version ++ SCG.usageInfo header options)
                             SX.exitWith SX.ExitSuccess
                     else if (DL.length files > 2 || DL.length files < 2) 
-                        then do hPutStrLn stderr (flerror ++ github ++ SCG.usageInfo header options)
+                        then do SIO.hPutStrLn stderr (flerror ++ github ++ SCG.usageInfo header options)
                                 SX.exitWith (SX.ExitFailure 1)
                         else return (DL.nub args, files) 
         (_,_,errors) -> do
-            hPutStrLn stderr (DL.concat errors ++ SCG.usageInfo header options)
+            SIO.hPutStrLn stderr (DL.concat errors ++ SCG.usageInfo header options)
             SX.exitWith (SX.ExitFailure 1)
         where 
             greeting    = "HuMo Create Variant File, Copyright (c) 2019 Matthew Mosior.\n"
@@ -105,6 +107,11 @@ compilerOpts argv =
 
 
 {-General Utility Functions.-}
+
+--readFileStrict -> This function will
+--read the file in as 
+readFileStrict :: FilePath -> IO String
+readFileStrict = fmap DBC.unpack . DB.readFile
 
 --lineFeed -> This function will
 --read the file in and split on
@@ -123,12 +130,41 @@ mapNotLast fn []     = []
 mapNotLast fn [x]    = [x]
 mapNotLast fn (x:xs) = fn x : mapNotLast fn xs
 
+--lengthCalculator -> This function will
+--determine the length to take and drop 
+--within the processArgsandFiles function.
+lengthCalculator :: [[String]] -> [Int]
+lengthCalculator []     = []
+lengthCalculator (x:xs) = [DL.length x - 5] ++ (lengthCalculator xs)
+
+--taker -> This function will take
+--n elements from the head of a list.
+taker :: [[String]] -> [Int] -> [[String]]
+taker []     []     = []
+taker (x:xs) (y:ys) = [DL.take y x] ++ (taker xs ys) 
+
+--dropper -> This function will drop
+--n elements from the head of a list.
+dropper :: [[String]] -> [Int] -> [[String]]
+dropper []     []     = []
+dropper (x:xs) (y:ys) = [DL.drop y x] ++ (dropper xs ys)
+
+--customChunker -> This function will
+--chunk each files contents based on the length
+--of each files corresponding list.
+customChunker :: [[String]] -> [[[String]]]
+customChunker []     = []
+customChunker (x:xs) = [DLS.chunksOf (DL.length x `div` 4) x] ++ (customChunker xs)   
+
 --variantAnnotator -> This function will
 --determine how to appropriately annotate
 --the current variants samples.
 variantAnnotator :: [[[String]]] -> [String] -> [[String]] -> [[(String,String)]]
 variantAnnotator []     []     []       = []
 variantAnnotator []     (_:_)  []       = []
+variantAnnotator []     []     (_:_)    = []
+variantAnnotator []     (_:_)  (_:_)    = []
+variantAnnotator (_:_)  _      []       = []
 variantAnnotator (x:xs) ys     (r:rs)   = [(DL.zip (DL.replicate (DL.length r) "N/A") r) ++ [ a | b <- ys , a <- unorderedvariants , fst a == b ]] ++ (variantAnnotator xs ys rs)
     where 
         --Prepare list compreshension.
@@ -152,7 +188,7 @@ catFile xs = do
     --Intercalate a tab, and then a newline into xs.
     let intercalatedxs = DL.intercalate "\n" (DL.map (DL.intercalate "\t") xs)
     --Add intercalatedxs to temp.txt.
-    hPutStrLn temph intercalatedxs
+    SIO.hPutStrLn temph intercalatedxs
     --Close the temporary file's handle.
     hClose temph
     --Print out the contents of tempfile to the screen using cat unix tool.
@@ -195,7 +231,8 @@ printFile opts xs = do
 --load all files listed in the data file.
 loadAllDataFiles :: [String] -> IO [String]
 loadAllDataFiles [] = return []
-loadAllDataFiles xs = DT.sequence (DL.map (SIO.readFile) xs) 
+--loadAllDataFiles xs = DT.sequence (DL.map (SIO.readFile) xs) 
+loadAllDataFiles xs = DT.sequence (DL.map (readFileStrict) xs)
 
 {-------------------------------------------------}
 
@@ -217,11 +254,11 @@ processArgsAndFiles (options,files) = do
     --Split alldata on whitespaces.
     let splitalldata = DL.map (DL.words) alldata
     --Create sublists (4 items each) on splitalldata.
-    let sublistalldata = DL.map (DL.take 16) splitalldata
+    let sublistalldata = taker splitalldata (lengthCalculator splitalldata)
     --Aggregate the lines of sublistalldata based on index.
-    let aggregatedalldata = DL.map (DL.transpose) (DL.map (DLS.chunksOf 4) sublistalldata)
+    let aggregatedalldata = DL.map (DL.transpose) (customChunker sublistalldata)
     --Grab the chr,start,stop,ref,alt from linefeedcurrentf.
-    let chrstartstoprefaltalldata = DL.map (DL.drop 16) splitalldata
+    let chrstartstoprefaltalldata = dropper splitalldata (lengthCalculator splitalldata)
     ------------------------------
     --Process header file now.
     readheaderfile <- SIO.readFile (DL.head files)
